@@ -1,0 +1,49 @@
+name: Build APK
+
+# Builds the Sunmi print-shell app in the cloud (GitHub's own servers) so
+# nobody needs Android Studio installed locally. Runs automatically on every
+# push to main, and can also be triggered manually from the Actions tab.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (required by the Android Gradle Plugin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Sync the Capacitor Android project (registers the Sunmi printer plugin)
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build a debug APK
+        # Debug build on purpose: it's automatically signed with a debug
+        # keystore Gradle generates on the fly, so there's no manual signing
+        # key to create. A debug APK installs fine on a device that already
+        # has "Install unknown apps" allowed (confirmed already on the P3).
+        run: cd android && ./gradlew assembleDebug --stacktrace
+
+      - name: Upload the APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunmi-print-shell-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
